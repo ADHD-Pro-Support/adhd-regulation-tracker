@@ -1,0 +1,34 @@
+# This file contains the instructions for our automated "safety check".
+# It tells GitHub to test our code every time we create a Pull Request.
+
+name: 'Continuous Integration'
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 'Run Tests & Checks'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 'Checkout Code'
+        uses: actions/checkout@v4
+
+      - name: 'Setup Node.js'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 'Install Dependencies'
+        run: npm install
+
+      - name: 'Run Linter (Code Quality Check)'
+        run: npm run lint
+
+      - name: 'Run Build (Check for Errors)'
+        run: npm run build
