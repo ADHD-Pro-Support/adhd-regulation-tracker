@@ -1,0 +1,40 @@
+[TASK] Generate lockfile via Actions, commit it, and restore `npm ci`
+[WHEN] Now — Sun 14 Sep 2025, 14:22 (Europe/London)
+[HOST] Adaptive
+[CONFIRM] Gemini: Acknowledge and log.
+
+1) Create .github/workflows/generate-lockfile.yml with:
+---
+name: Generate Lockfile
+on:
+  workflow_dispatch:
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install --no-audit --no-fund
+      - name: Commit lockfile
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f package-lock.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "build: add package-lock.json"
+            git push
+          fi
+---
+
+2) Trigger this workflow manually (Actions → Generate Lockfile → Run workflow).
+3) Create a branch `chore/ci-restore-npm-ci`, edit .github/workflows/ci.yml → replace all
+   `npm install --no-audit --no-fund` with `npm ci`.
+4) Open PR:
+   Title: chore(ci): restore `npm ci` with lockfile
+   Body: Add deterministic installs now that package-lock.json exists.
+   Enable Auto-merge (squash).
+
+OUTPUT → ACCESS CARD: PR link + checks.
