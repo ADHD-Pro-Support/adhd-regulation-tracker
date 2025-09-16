@@ -1,0 +1,25 @@
+supabase/migrations/20250915224500_create_favourites.sql
+supabase/migrations/20250915224501_create_favourites_rpc.sql
+lib/supabase/favourites.ts
+hooks/useFavourites.ts
+app/favourites/page.tsx
+.github/workflows/ci.yml              // add if missing (see below)
+'use client';
+import { useFavourites } from '@/hooks/useFavourites';
+/* inside component */
+const { favouriteIds, toggleFavourite } = useFavourites();
+const isFavourited = favouriteIds.includes(item.id);
+/* in JSX */
+<button
+  onClick={() => toggleFavourite(item.id)}
+  className="absolute top-2 right-2 text-2xl"
+  aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
+>
+  {isFavourited ? '⭐' : '☆'}
+</button>
+feat: Add "My Favourites" (DB+RPC+UI)
+Adds Supabase favourites: table with RLS + RPCs, ⭐ toggle on cards (optimistic), and /favourites page (login-gated).
+
+⚙️ Apply DB after merge (or now via SQL Editor).
+🧪 CI: npm ci && npm test.
+🚀 Preview: Vercel.
