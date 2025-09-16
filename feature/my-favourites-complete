@@ -1,0 +1,53 @@
+sandbox:/mnt/data/adhd-pro-favourites-kit-2025-09-15.zip
+supabase/migrations/20250915224500_create_favourites.sql
+supabase/migrations/20250915224501_create_favourites_rpc.sql
+lib/supabase/favourites.ts
+hooks/useFavourites.ts
+app/favourites/page.tsx
+feat: My Favourites — DB + RPC + UI (minimal)
+Adds Supabase favourites: table with RLS + RPCs, ⭐ toggle (optimistic) and /favourites page (login-gated).
+Apply the SQL below in Supabase → SQL Editor. Preview on Vercel after merge.
+-- TABLE + RLS
+CREATE TABLE IF NOT EXISTS public.favourites (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_favourites_user_id ON public.favourites(user_id);
+ALTER TABLE public.favourites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow users to select their own favourites" ON public.favourites FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Allow users to insert their own favourites" ON public.favourites FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Allow users to delete their own favourites" ON public.favourites FOR DELETE USING (auth.uid() = user_id);
+
+-- RPCs
+CREATE OR REPLACE FUNCTION list_favourites()
+RETURNS TABLE(item_id TEXT)
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT item_id FROM public.favourites WHERE user_id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION add_favourite(item_id_to_add TEXT)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER AS $$
+  INSERT INTO public.favourites (user_id, item_id)
+  VALUES (auth.uid(), item_id_to_add) ON CONFLICT DO NOTHING;
+$$;
+
+CREATE OR REPLACE FUNCTION remove_favourite(item_id_to_remove TEXT)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER AS $$
+  DELETE FROM public.favourites
+  WHERE user_id = auth.uid() AND item_id = item_id_to_remove;
+$$;
+'use client';
+import { useFavourites } from '@/hooks/useFavourites';
+const { favouriteIds, toggleFavourite } = useFavourites();
+const isFavourited = favouriteIds.includes(item.id);
+<button
+  onClick={() => toggleFavourite(item.id)}
+  className="absolute top-2 right-2 text-2xl"
+  aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
+>
+  {isFavourited ? '⭐' : '☆'}
+</button>
