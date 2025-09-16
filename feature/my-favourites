@@ -1,0 +1,5 @@
+supabase/migrations/20250915224500_create_favourites.sql
+supabase/migrations/20250915224501_create_favourites_rpc.sql
+lib/supabase/favourites.ts
+hooks/useFavourites.ts
+app/favourites/page.tsx
