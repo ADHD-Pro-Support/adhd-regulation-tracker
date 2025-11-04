@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      pull-requests: write
     env:
       DRY_RUN: ${{ github.event.inputs.run_mode != 'apply' }}
       PR_BRANCH: chore/auto-fix-all-2025-11-04
@@ -132,8 +133,8 @@ jobs:
             pip install ruff black isort pytest || true
 
             if command -v ruff >/dev/null 2>&1; then
-              echo "Running ruff --fix ."
-              ruff --fix .
+              echo "Running ruff check --fix ."
+              ruff check --fix .
             fi
 
             isort .
@@ -197,22 +198,24 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY_RUN=true -> Changes detected but not committing or pushing. Run with run_mode=apply to commit and push."
+            git diff --staged --stat
+            exit 0
+          fi
+
           git commit -m "chore: automated fixes and formatting"
           git push --set-upstream origin "$PR_BRANCH"
           echo "Branch $PR_BRANCH pushed."
-
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "DRY_RUN=true -> Not creating PR. Review the branch: $PR_BRANCH"
-            exit 0
-          fi
 
           if command -v gh >/dev/null 2>&1; then
             gh pr create --fill --title "$PR_TITLE" --body-file <(echo "$PR_BODY")
           else
             echo "gh not present - creating PR via API"
             API_URL="https://api.github.com/repos/${{ github.repository }}/pulls"
-            BODY=$(jq -n --arg title "$PR_TITLE" --arg head "$PR_BRANCH" --arg base "${{ github.ref_name }}" \
-              '{title:$title, head:$head, base:$base, body:"'"$PR_BODY"'"}')
+            BODY=$(jq -n --arg title "$PR_TITLE" --arg head "$PR_BRANCH" --arg base "${{ github.ref_name }}" --arg body "$PR_BODY" \
+              '{title:$title, head:$head, base:$base, body:$body}')
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" \
               -d "$BODY" "https://api.github.com/repos/${{ github.repository }}/pulls"
           fi
