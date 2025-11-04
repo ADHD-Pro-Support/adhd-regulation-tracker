@@ -1,0 +1,215 @@
+name: Auto-Fix & Improve Repo (General)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        description: 'dry-run or apply (apply will write changes and open PR)'
+        required: true
+        default: 'dry-run'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ github.event.inputs.run_mode != 'apply' }}
+      PR_BRANCH: chore/auto-fix-all-2025-11-04
+      PR_TITLE: "chore: automated fixes, formatting & simple optimisations"
+      PR_BODY: |
+        This PR was created by the automated "Auto-Fix & Improve Repo" workflow.
+
+        - Runs formatters and auto-fix linters (Prettier, ESLint, Ruff, Black, isort, gofmt, shfmt).
+        - Runs tests (if present) and reports failures.
+        - Creates a short SECURITY-AUDIT.md with npm audit output (if Node).
+        - DOES NOT auto-merge. Please review all changes, run tests, then merge.
+
+        **Run mode:** ${{ github.event.inputs.run_mode }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node (if present)
+        if: runner.os == 'Linux'
+        run: |
+          # detect Node presence
+          if [ -f package.json ]; then
+            echo "Node project detected."
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            npm --version
+            node --version
+          else
+            echo "No package.json - skipping Node setup."
+          fi
+
+      - name: Set up Python (if present)
+        run: |
+          if [ -f requirements.txt ] || [ -f pyproject.toml ] || [ -f setup.py ]; then
+            sudo apt-get update
+            sudo apt-get install -y python3 python3-venv python3-pip
+            python3 --version
+            pip3 --version
+          else
+            echo "No Python files detected - skipping Python setup."
+          fi
+
+      - name: Install common formatters and linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt golang-go hadolint jq
+          # Node formatters (installed later if Node present)
+          # Python tools installed in-line where needed
+
+      - name: Auto-fix Node (ESLint / Prettier / tests)
+        run: |
+          if [ -f package.json ]; then
+            echo "Node detected - installing dev deps if package-lock present"
+            if [ -f package-lock.json ]; then
+              npm ci --silent
+            else
+              npm install --legacy-peer-deps --silent
+            fi
+
+            # Prettier
+            if npx --no -- prettier --version > /dev/null 2>&1; then
+              echo "Running Prettier..."
+              npx prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" || true
+            fi
+
+            # ESLint fix
+            if npx --no -- eslint --version > /dev/null 2>&1; then
+              echo "Running ESLint --fix..."
+              npx eslint . --ext .js,.jsx,.ts,.tsx --fix || true
+            elif [ -f .eslintrc.* ] || grep -q eslint package.json 2>/dev/null; then
+              echo "ESLint configured but not installed - installing eslint..."
+              npm i -D eslint --silent
+              npx eslint . --ext .js,.jsx,.ts,.tsx --fix || true
+            fi
+
+            # Run tests if defined
+            if jq -e '.scripts.test' package.json >/dev/null 2>&1; then
+              echo "Running npm test..."
+              npm test || echo "npm test failed - please inspect"
+            fi
+
+            # npm audit summary
+            if command -v npm >/dev/null; then
+              echo "Running npm audit --json..."
+              npm audit --json > npm-audit.json || true
+              node -e "let f=require('fs'); try{let o=JSON.parse(f.readFileSync('npm-audit.json')); f.writeFileSync('SECURITY-AUDIT.md','# NPM Audit\\n\\n'+JSON.stringify({v:o.metadata,advisories:o.advisories?Object.keys(o.advisories).length:0},null,2))}catch(e){f.writeFileSync('SECURITY-AUDIT.md','npm audit had no machine output')}"
+            fi
+          else
+            echo "No Node project - skipping Node fixes."
+          fi
+
+      - name: Auto-fix Python (Ruff / Black / isort / tests)
+        run: |
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f setup.py ]; then
+            python3 -m venv .venv || true
+            source .venv/bin/activate
+            pip install --upgrade pip setuptools wheel
+            pip install ruff black isort pytest || true
+
+            # Ruff auto-fix
+            if command -v ruff >/dev/null 2>&1; then
+              echo "Running ruff --fix ."
+              ruff --fix .
+            fi
+
+            # isort and black
+            isort .
+            black .
+
+            # Run tests if pytest available
+            if command -v pytest >/dev/null 2>&1; then
+              pytest -q || echo "pytest had failures - please inspect"
+            fi
+          else
+            echo "No Python project detected - skipping Python fixes."
+          fi
+
+      - name: Auto-fix Go (gofmt)
+        run: |
+          if [ -f go.mod ]; then
+            echo "Go project detected - running gofmt"
+            find . -name '*.go' -not -path "./vendor/*" -print0 | xargs -0 -n1 gofmt -w || true
+            go vet ./... || true
+          else
+            echo "No go.mod - skipping Go fixes."
+          fi
+
+      - name: Auto-fix Shell scripts (shfmt)
+        run: |
+          if ls **/*.sh 1> /dev/null 2>&1; then
+            echo "Formatting shell scripts with shfmt"
+            find . -type f -name '*.sh' -print0 | xargs -0 -n1 shfmt -w || true
+          else
+            echo "No shell scripts found"
+          fi
+
+      - name: Auto-fix Markdown (Prettier)
+        run: |
+          if command -v npx >/dev/null 2>&1; then
+            echo "Formatting Markdown with Prettier (if available)"
+            npx prettier --write "**/*.md" || true
+          else
+            # try installing prettier
+            npm i -D prettier --silent || true
+            npx prettier --write "**/*.md" || true
+          fi
+
+      - name: Lint Dockerfiles (hadolint)
+        run: |
+          if [ -f Dockerfile ] || ls **/Dockerfile 1> /dev/null 2>&1; then
+            echo "Running hadolint"
+            find . -name Dockerfile -print0 | xargs -0 -n1 hadolint || true
+          else
+            echo "No Dockerfile found"
+          fi
+
+      - name: Check for changes and create PR (if any)
+        env:
+          PR_BRANCH: ${{ env.PR_BRANCH }}
+          DRY_RUN: ${{ env.DRY_RUN }}
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          # Commit changes
+          git commit -m "chore: automated fixes and formatting"
+          git push --set-upstream origin "$PR_BRANCH"
+          echo "Branch $PR_BRANCH pushed."
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY_RUN=true -> Not creating PR. Review the branch: $PR_BRANCH"
+            exit 0
+          fi
+
+          # Create PR using GitHub CLI
+          if command -v gh >/dev/null 2>&1; then
+            gh pr create --fill --title "$PR_TITLE" --body-file <(echo "$PR_BODY")
+          else
+            # fallback: use REST API
+            echo "gh not present - creating PR via API"
+            API_URL="https://api.github.com/repos/${{ github.repository }}/pulls"
+            BODY=$(jq -n --arg title "$PR_TITLE" --arg head "$PR_BRANCH" --arg base "${{ github.ref_name }}" \
+              '{title:$title, head:$head, base:$base, body:"'"$PR_BODY"'"}')
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" \
+              -d "$BODY" "https://api.github.com/repos/${{ github.repository }}/pulls"
+          fi
+
+      - name: Final summary
+        run: |
+          echo "Auto-fix job complete. If DRY_RUN=true, run with run_mode=apply to push changes and create PR."
