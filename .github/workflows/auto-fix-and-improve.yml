@@ -87,7 +87,7 @@ jobs:
             echo "No package.json - skipping Node setup."
           fi
 
-      - name: Auto-fix: Node (ESLint / Prettier / tests)
+      - name: 'Auto-fix: Node (ESLint / Prettier / tests)'
         run: |
           if [ -f package.json ]; then
             if [ -f package-lock.json ]; then
@@ -123,7 +123,7 @@ jobs:
             echo "No Node project - skipping Node fixes."
           fi
 
-      - name: Auto-fix: Python (Ruff / Black / isort / tests)
+      - name: 'Auto-fix: Python (Ruff / Black / isort / tests)'
         run: |
           if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f setup.py ]; then
             python -m venv .venv || true
@@ -146,7 +146,7 @@ jobs:
             echo "No Python project detected - skipping Python fixes."
           fi
 
-      - name: Auto-fix: Go (gofmt)
+      - name: 'Auto-fix: Go (gofmt)'
         run: |
           if [ -f go.mod ]; then
             echo "Go project detected - running gofmt"
@@ -156,7 +156,7 @@ jobs:
             echo "No go.mod - skipping Go fixes."
           fi
 
-      - name: Auto-fix: Shell scripts (shfmt)
+      - name: 'Auto-fix: Shell scripts (shfmt)'
         run: |
           if ls **/*.sh 1> /dev/null 2>&1; then
             echo "Formatting shell scripts with shfmt"
@@ -165,7 +165,7 @@ jobs:
             echo "No shell scripts found"
           fi
 
-      - name: Auto-fix: Markdown (Prettier)
+      - name: 'Auto-fix: Markdown (Prettier)'
         run: |
           if command -v npx >/dev/null 2>&1; then
             echo "Formatting Markdown with Prettier (if available)"
