@@ -20,7 +20,7 @@ export default function FavouritesPage() {
       <h1 className="text-3xl font-bold mb-4">My Favourites</h1>
       {favouriteIds.length === 0 ? (
         <div className="text-center p-8 border-2 border-dashed rounded-lg">
-          <p className="text-gray-500">You haven't added any favourites yet.</p>
+          <p className="text-gray-500">You haven&apos;t added any favourites yet.</p>
           <p className="text-gray-500 mt-2">Click the ⭐ on any regulation to save it here.</p>
         </div>
       ) : (
