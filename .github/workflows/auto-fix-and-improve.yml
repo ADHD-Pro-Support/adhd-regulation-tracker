@@ -132,8 +132,8 @@ jobs:
             pip install ruff black isort pytest || true
 
             if command -v ruff >/dev/null 2>&1; then
-              echo "Running ruff --fix ."
-              ruff --fix .
+              echo "Running ruff check --fix ."
+              ruff check --fix .
             fi
 
             isort .
@@ -213,7 +213,7 @@ jobs:
             API_URL="https://api.github.com/repos/${{ github.repository }}/pulls"
             BODY=$(jq -n --arg title "$PR_TITLE" --arg head "$PR_BRANCH" --arg base "${{ github.ref_name }}" \
               '{title:$title, head:$head, base:$base, body:"'"$PR_BODY"'"}')
-            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" \
+            curl -s -X POST -H "Authorization: token ${{ github.token }}" -H "Accept: application/vnd.github.v3+json" \
               -d "$BODY" "https://api.github.com/repos/${{ github.repository }}/pulls"
           fi
 
