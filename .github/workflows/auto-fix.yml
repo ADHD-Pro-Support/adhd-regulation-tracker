@@ -8,13 +8,19 @@ on:
         required: true
         default: 'dry-run'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
-  pull-requests: write
+
+timeout-minutes: 20
 
 jobs:
   auto-fix:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       DRY_RUN: ${{ github.event.inputs.run_mode != 'apply' }}
       PR_BRANCH: chore/auto-fix-all-2025-11-04
@@ -174,7 +180,7 @@ jobs:
             echo "No Dockerfile found"
           fi
 
-      - name: Check for changes and create PR (if any)
+      - name: Check for changes and commit (manual PR creation)
         env:
           PR_BRANCH: ${{ env.PR_BRANCH }}
           DRY_RUN: ${{ env.DRY_RUN }}
@@ -192,24 +198,11 @@ jobs:
           git push --set-upstream origin "$PR_BRANCH"
           echo "Branch $PR_BRANCH pushed."
 
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "DRY_RUN=true -> Not creating PR. Review the branch: $PR_BRANCH"
-            exit 0
-          fi
-
-          # Create PR using GitHub CLI
-          if command -v gh >/dev/null 2>&1; then
-            gh pr create --fill --title "$PR_TITLE" --body-file <(echo "$PR_BODY")
-          else
-            # fallback: use REST API
-            echo "gh not present - creating PR via API"
-            API_URL="https://api.github.com/repos/${{ github.repository }}/pulls"
-            BODY=$(jq -n --arg title "$PR_TITLE" --arg head "$PR_BRANCH" --arg base "${{ github.ref_name }}" \
-              '{title:$title, head:$head, base:$base, body:"'"$PR_BODY"'"}')
-            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" \
-              -d "$BODY" "https://api.github.com/repos/${{ github.repository }}/pulls"
-          fi
+          # Note: Automatic PR creation has been removed for workflow governance.
+          # To create a PR, manually run: gh pr create --title 'chore: automated fixes' --body 'See workflow run for details'
+          echo "⚠️  Auto-PR creation disabled. Please create PR manually if needed."
 
       - name: Final summary
         run: |
-          echo "Auto-fix job complete. If DRY_RUN=true, run with run_mode=apply to push changes and create PR."
+          echo "Auto-fix job complete. Branch pushed if changes were made."
+          echo "Note: Auto-PR creation is disabled. Create PR manually if needed."
